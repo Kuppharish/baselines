@@ -11,6 +11,7 @@ from baselines.common.policies import build_policy
 from baselines.common.runners import AbstractEnvRunner
 from baselines.common.tf_util import get_session, save_variables, load_variables
 from baselines.common.mpi_adam_optimizer import MpiAdamOptimizer
+import gymfc
 
 from mpi4py import MPI
 from baselines.common.tf_util import initialize

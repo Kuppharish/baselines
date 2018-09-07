@@ -5,6 +5,7 @@ import gym
 from collections import defaultdict
 import tensorflow as tf
 import numpy as np
+import gymfc
 
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
 from baselines.common.cmd_util import common_arg_parser, parse_unknown_args, make_vec_env
@@ -13,6 +14,7 @@ from baselines import bench, logger
 from importlib import import_module
 
 from baselines.common.vec_env.vec_normalize import VecNormalize
+from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
 from baselines.common import atari_wrappers, retro_wrappers
 
 try:
@@ -20,19 +22,9 @@ try:
 except ImportError:
     MPI = None
 
-try:
-    import pybullet_envs
-except ImportError:
-    pybullet_envs = None
-
-try:
-    import roboschool
-except ImportError:
-    roboschool = None
-
 _game_envs = defaultdict(set)
 for env in gym.envs.registry.all():
-    # TODO: solve this with regexes
+    # solve this with regexes
     env_type = env._entry_point.split(':')[0].split('.')[-1]
     _game_envs[env_type].add(env.id)
 
@@ -53,7 +45,6 @@ _game_envs['retro'] = {
 
 def train(args, extra_args):
     env_type, env_id = get_env_type(args.env)
-    print('env_type: {}'.format(env_type))
 
     total_timesteps = int(args.num_timesteps)
     seed = args.seed
@@ -91,8 +82,19 @@ def build_env(args):
     seed = args.seed
 
     env_type, env_id = get_env_type(args.env)
+    if env_type == 'mujoco':
+        get_session(tf.ConfigProto(allow_soft_placement=True,
+                                   intra_op_parallelism_threads=1,
+                                   inter_op_parallelism_threads=1))
 
-    if env_type == 'atari':
+        if args.num_env:
+            env = make_vec_env(env_id, env_type, nenv, seed, reward_scale=args.reward_scale)
+        else:
+            env = make_vec_env(env_id, env_type, 1, seed, reward_scale=args.reward_scale)
+
+        env = VecNormalize(env)
+
+    elif env_type == 'atari':
         if alg == 'acer':
             env = make_vec_env(env_id, env_type, nenv, seed)
         elif alg == 'deepq':
@@ -120,15 +122,17 @@ def build_env(args):
         env = bench.Monitor(env, logger.get_dir())
         env = retro_wrappers.wrap_deepmind_retro(env)
 
-    else: 
-       get_session(tf.ConfigProto(allow_soft_placement=True,
-                                   intra_op_parallelism_threads=1,
-                                   inter_op_parallelism_threads=1))
+    elif env_type == 'classic_control':
+        def make_env():
+            e = gym.make(env_id)
+            e = bench.Monitor(e, logger.get_dir(), allow_early_resets=True)
+            e.seed(seed)
+            return e
 
-       env = make_vec_env(env_id, env_type, args.num_env or 1, seed, reward_scale=args.reward_scale)
+        env = DummyVecEnv([make_env])
 
-       if env_type == 'mujoco':
-           env = VecNormalize(env) 
+    else:
+        raise ValueError('Unknown env_type {}'.format(env_type))
 
     return env
 
@@ -149,10 +153,10 @@ def get_env_type(env_id):
 
 
 def get_default_network(env_type):
+    if env_type == 'mujoco' or env_type == 'classic_control':
+        return 'mlp'
     if env_type == 'atari':
         return 'cnn'
-    else:
-        return 'mlp'
 
     raise ValueError('Unknown env_type {}'.format(env_type))
 
