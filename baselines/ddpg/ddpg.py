@@ -323,13 +323,6 @@ class DDPG(object):
 
     def initialize(self, sess):
         self.sess = sess
-        '''
-        try:
-            tf.train.Saver.restore(self.sess, '/home/kuppam/RL/baselines/models/model.ckpt')
-            print("model restored!!")
-        except Exception as e:
-            print(e)
-        '''
         self.sess.run(tf.global_variables_initializer())
         self.actor_optimizer.sync()
         self.critic_optimizer.sync()

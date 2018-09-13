@@ -30,19 +30,20 @@ def train(env, nb_epochs, nb_epoch_cycles, render_eval, reward_scale, render, pa
     logger.info(str(agent.__dict__.items()))
 
     # Set up logging stuff only for a single worker.
-    '''
-    if rank == 0:
-        saver = tf.train.Saver()
-    else:
-        saver = None
-    '''
-    saver = tf.train.Saver()
-
+    savingModelPath="./model"
     step = 0
     episode = 0
     eval_episode_rewards_history = deque(maxlen=100)
     episode_rewards_history = deque(maxlen=100)
     with U.single_threaded_session() as sess:
+        try:
+            #saver = tf.train.import_meta_graph(savingModelPath + "/mountain_model")
+            saver=tf.train.Saver()
+            saver.restore(sess, tf.train.latest_checkpoint(savingModelPath))
+            logger.info("Restoring from saved model")
+        except:
+            logger.info("Starting from scratch!")
+            #sess.run(tf.global_variables_initializer())
         # Prepare everything.
         agent.initialize(sess)
         sess.graph.finalize()
@@ -68,7 +69,7 @@ def train(env, nb_epochs, nb_epoch_cycles, render_eval, reward_scale, render, pa
         epoch_actions = []
         epoch_qs = []
         epoch_episodes = 0
-        tf.train.Saver.restore(sess, '/home/kuppam/RL/baselines/models/model.ckpt')
+        #tf.train.Saver.restore(sess, '/home/kuppam/RL/baselines/models/model.ckpt')
         for epoch in range(nb_epochs):
             for cycle in range(nb_epoch_cycles):
                 # Perform rollouts.
@@ -195,4 +196,4 @@ def train(env, nb_epochs, nb_epoch_cycles, render_eval, reward_scale, render, pa
                         pickle.dump(eval_env.get_state(), f)
         print("*********")
         print("Saving model")
-        saver.save(sess, './models/model.ckpt')
+        saver.save(sess, './model/mountain_model')
